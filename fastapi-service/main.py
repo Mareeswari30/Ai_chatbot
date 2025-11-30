@@ -1,36 +1,37 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
-import torch
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM, pipeline
 
 app = FastAPI()
 
-# Load model & tokenizer
-model_name = "stabilityai/stablelm-2-1b-chat"  # smaller, CPU-friendly
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name)
+# Load Google FLAN-T5 model
+model_name = "google/flan-t5-base"   # You can use small/base/large/xl
 
-# Create a text generation pipeline
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
+
+# Use text2text-generation pipeline
 generator = pipeline(
-    "text-generation",
+    "text2text-generation",
     model=model,
     tokenizer=tokenizer,
-    device=-1  # CPU only
+    device=-1  # CPU
 )
 
-# Request model
 class Message(BaseModel):
     message: str
 
 @app.post("/generate")
 def generate(data: Message):
-    prompt = f"User: {data.message}\nAssistant:"
+    prompt = f"User question: {data.message}"
+
     output = generator(
         prompt,
-        max_length=100,          # limit reply length
-        do_sample=True,          # add randomness for varied responses
-        temperature=0.7,         # control creativity
-        repetition_penalty=1.5,  # avoid repeated text
-        num_return_sequences=1
+        max_length=150,
+        temperature=0.7,
+        repetition_penalty=1.2,
     )
-    return {"reply": output[0]["generated_text"].strip()}
+
+    reply = output[0]["generated_text"]
+    return {"reply": reply.strip()}
+
